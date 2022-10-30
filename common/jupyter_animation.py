@@ -38,7 +38,7 @@ def animate(image_seq: Iterable, axes=None, close_fig=True):
 
 from matplotlib.pyplot import grid
 
-def animation_table(image_seq: Iterable, grids: Iterable[int], close_fig=True):
+def animation_table(image_seq: Iterable, grids: Iterable[int], min_num_frames=0, close_fig=True):
   from matplotlib import rc
   rc('animation', html='html5')
 
@@ -46,7 +46,7 @@ def animation_table(image_seq: Iterable, grids: Iterable[int], close_fig=True):
     return isinstance(image, tuple) and len(image) == 3 and isinstance(image[1], int) and isinstance(image[2], int)
 
   graphical_element_mapping = dict()
-  max_num_frames = 0
+  max_num_frames = min_num_frames
   # return number of frames
   def register_animation(animation_data, row, col) -> int:
     if animation_data is None:
