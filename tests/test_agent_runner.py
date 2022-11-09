@@ -4,7 +4,7 @@ import numpy as np
 import gym
 import asyncio
 
-async def q_function(state):
+def q_function(state):
   return np.random.randint(0, 2)
 
 

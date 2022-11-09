@@ -4,6 +4,7 @@ from collections import namedtuple
 import numpy as np
 from .memory_bank import MemoryBank
 from typing import Iterable, Union, Callable, Tuple, List, Dict, Any
+from ..common.eventloop_pool import EventLoopPool
 
 class Agent:
   def __init__(self, env_maker:callable, q_function:asyncio.coroutine, epsilon=0.5):
@@ -12,7 +13,6 @@ class Agent:
     self.q_function = q_function
     self.epsilon = epsilon
     self.Q_Element = namedtuple('Q_Entry', ['state', 'action', 'reward', 'new_state'])
-    self.loop = asyncio.get_event_loop()
 
   async def step(self):
     if np.random.random() < self.epsilon:
@@ -41,7 +41,7 @@ class AgentAnimator:
     self.loop = asyncio.get_event_loop()
     self.num_agents = num_agents
     self.agents = []
-    self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=threads)
+    self.executor = EventLoopPool(num_workers=threads)
     self.q_function = q_function
     self.state_batch = []
 
@@ -76,8 +76,8 @@ class AgentAnimator:
       agents = self.agents
     
     loop = asyncio.get_event_loop()
-    
-    tasks = [loop.run_in_executor(self.executor, agent.run) for agent in self.agents]
-    tasks = asyncio.gather(*tasks)
-    traces = loop.run_until_complete(tasks)
-    return traces
+
+
+    coros = [agent.run() for agent in agents]
+    result = self.executor.submit(coros)
+    return result

@@ -3,10 +3,10 @@ from threading import Thread
 from typing import Iterable
 
 class EventLoopPool:
-  def __init__(self, num_loops:int=4):
-    self.num_loops = num_loops
+  def __init__(self, num_workers:int=4):
+    self.num_workers = num_workers
     self.loops = []
-    for _ in range(num_loops):
+    for _ in range(num_workers):
       self.loops.append(self.new_thread_loop())
   
   def new_thread_loop(self, loop:asyncio.AbstractEventLoop=None):
@@ -21,14 +21,14 @@ class EventLoopPool:
 
   def submit(self, coros:Iterable[asyncio.coroutine]):
     l = len(coros)
-    batch = l // self.num_loops
-    remainder = l % self.num_loops
+    batch = l // self.num_workers
+    remainder = l % self.num_workers
     futures = []
 
     for i, loop in enumerate(self.loops):
       start = i * batch
       end = start + batch
-      if i == self.num_loops - 1:
+      if i == self.num_workers - 1:
        end += remainder
 
       for coro in coros[start:end]:
