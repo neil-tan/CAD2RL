@@ -11,11 +11,13 @@ import concurrent.futures
 import gym
 from common.jupyter_animation import animate, animation_table
 from common.memory_bank import MemoryBank
+from common.agents import Agent, AgentAnimator
 from typing import Iterable, Union, Callable, Tuple, List, Dict, Any
 import time
 
 import pytorch_lightning as pl
 import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
 
 # %%
 env = gym.make('CartPole-v1', render_mode="rgb_array")
@@ -35,83 +37,21 @@ env.reset()[0]
 
 # %%
 
-
-
-class Agent:
-  def __init__(self, env_maker:callable, q_function:asyncio.coroutine, epsilon=0.5):
-    self.env = env_maker()
-    self.state = self.env.reset()
-    self.q_function = q_function
-    self.epsilon = epsilon
-    self.Q_Element = namedtuple('Q_Entry', ['state', 'action', 'reward', 'new_state'])
-    self.loop = asyncio.get_event_loop()
-
-  async def step(self):
-    if np.random.random() < self.epsilon:
-      action = self.env.action_space.sample()
-    else:
-      action = self.q_function(self.state)
-    # new_state, reward, done, truncated, info
-    done, truncated, info = False, False, None
-    while not done and not truncated:
-      new_state, reward, done, truncated, info = self.env.step(action)
-      yield self.state, action, reward, new_state
-      self.state = new_state
-  
-  async def run(self) -> list:
-    self.state = self.env.reset()
-    trace = []
-    for output in self.step():
-      state, action, reward, new_state = await output
-      q_element = self.Q_Element(state, action, reward, new_state)
-      trace.append(q_element)
-    
-    return trace
-
-class AgentPool:
-  def __init__(self, env_maker:callable, num_agents:int, q_function:asyncio.coroutine, threads:int=16):
-    self.loop = asyncio.get_event_loop()
-    self.num_agents = num_agents
-    self.agents = []
-    self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=threads)
-    self.q_function = q_function
-    self.state_batch = []
-
-    for _ in range(num_agents):
-      self.agents.append(Agent(env_maker, self.q_function))
-  
-  
-  def update(self, num_runs:int, memory_bank:MemoryBank):
-    num_batches = num_runs // self.num_agents
-    remainder_runs = num_runs % self.num_agents
-
-    for _ in range(num_batches):
-      traces = self.run_all()
-      for trace in traces:
-        for q_element in trace:
-          memory_bank.add(q_element)
-    
-    if remainder_runs > 0:
-      traces = self.run_all(self.agents[:remainder_runs])
-      for trace in traces:
-        for q_element in trace:
-          memory_bank.add(q_element)
-
-  def run_all(self, agents:List[Agent]=None):
-    if agents is None:
-      agents = self.agents
-    loop = asyncio.get_event_loop()
-    tasks = [loop.run_in_executor(self.executor, agent.run) for agent in self.agents]
-    traces = loop.run_until_complete(asyncio.gather(*tasks))
-    return traces
-
-
 class DeepQLearning:
-  def __init__(self, env_class, memory_size=200000):
+  def __init__(self, env_maker, memory_size=200000):
     self.memory_bank = MemoryBank(memory_size=memory_size)
     self.action_network = self.create_network(num_states=4, num_actions=2)
     self.target_network = self.create_network(num_states=4, num_actions=2)
-    self.agent_pool = AgentPool(env_class, num_agents=16, q_function=self.q_function)
+    self.animator = AgentAnimator(env_maker, num_agents=16, q_function=self.q_function)
+
+    self.animator.fill(self.memory_bank)
+    self.data_loader = DataLoader(self.memory_bank, batch_size=32, shuffle=True)
+  
+  def train(self):
+    for batch in self.data_loader:
+      print(batch)
+      break
+
 
   def q_function(self, state):
     # need to improve the efficiency of this

@@ -1,23 +1,28 @@
 import asyncio
 from threading import Thread
 from typing import Iterable
+from collections import namedtuple
+import time
+import torch
+
+def new_thread_loop(loop:asyncio.AbstractEventLoop=None):
+  loop = asyncio.new_event_loop() if loop is None else loop
+  def loop_thread():
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+  thread = Thread(target=loop_thread, daemon=True)
+  thread.start()
+  return loop, thread
 
 class EventLoopPool:
   def __init__(self, num_workers:int=4):
     self.num_workers = num_workers
     self.loops = []
     for _ in range(num_workers):
-      self.loops.append(self.new_thread_loop())
+      loop, _thread = new_thread_loop()
+      self.loops.append(loop)
   
-  def new_thread_loop(self, loop:asyncio.AbstractEventLoop=None):
-    loop = asyncio.new_event_loop() if loop is None else loop
-    def loop_thread():
-      asyncio.set_event_loop(loop)
-      loop.run_forever()
-
-    thread = Thread(target=loop_thread, daemon=True)
-    thread.start()
-    return loop
 
   def submit(self, coros:Iterable[asyncio.coroutine]):
     l = len(coros)
@@ -45,3 +50,69 @@ class EventLoopPool:
     for loop in self.loops:
       loop.call_soon_threadsafe(stop_loop(loop))
       loop.call_soon_threadsafe(loop.stop)
+
+
+class AsyncBatchedForward:
+  def __init__(self, batched_forward:callable, batch_size:int=0, timeout:int=0, loop:asyncio.AbstractEventLoop=None):
+    self.loop = asyncio.get_event_loop() if loop is None else loop
+    self.batched_forward = batched_forward
+    self.timeout = timeout
+
+    self.batch_size = batch_size
+
+    self.time_last_flush = 0
+    self.call_stack_entry = namedtuple('call_stack_entry', ['future', 'args', 'kwargs']) # (future, (args, kwargs))
+    self.call_stack = []
+
+  def __should_flush(self):
+    if self.batch_size > 0 and len(self.call_stack) >= self.batch_size:
+      return True
+
+    if self.timeout > 0 and time.time() - self.time_last_flush >= self.timeout:
+      return True
+
+    return False
+  
+  def __flush(self):
+    futures = []
+    tensors = []
+    self.time_last_flush = time.time()
+    for entry in self.call_stack:
+      futures.append(entry.future)
+      tensor = entry.args[0]
+      tensor = tensor.squeeze(0)
+      tensors.append(tensor)
+
+    tensors = torch.stack(tensors, dim=0)
+    outputs = self.batched_forward(tensors)
+
+    for future, output in zip(futures, outputs):
+      future.set_result(output)
+    
+    self.call_stack.clear()
+
+  async def __batch_call(self, *args, **kwargs):
+    # assume that we are thread safe here
+    future = asyncio.Future()
+    self.call_stack.append(self.call_stack_entry(future, args, kwargs))
+
+    if self.__should_flush():
+      self.__flush()
+    
+    result = await future
+    return result
+
+  def flush(self):
+    self.loop.call_soon_threadsafe(self.__flush)
+
+  async def __call__(self, *args, **kwargs):
+    current_loop = asyncio.get_running_loop()
+    future = current_loop.create_future()
+    def call_back(f):
+      current_loop.call_soon_threadsafe(future.set_result, f.result())
+
+    concurrent_future = asyncio.run_coroutine_threadsafe(self.__batch_call(*args, **kwargs), loop=self.loop)
+    concurrent_future.add_done_callback(call_back)
+    result = await future
+    return result
+    

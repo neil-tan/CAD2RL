@@ -25,5 +25,4 @@ def test_agent_repeat(capsys):
   for trace_len in trace_lens:
     assert trace_len > 0
   
-  with capsys.disabled():
-      print("lens: ", trace_lens)
+  print("lens: ", trace_lens, end='')

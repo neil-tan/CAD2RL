@@ -74,9 +74,6 @@ class AgentAnimator:
   def run_all(self, agents:List[Agent]=None):
     if agents is None:
       agents = self.agents
-    
-    loop = asyncio.get_event_loop()
-
 
     coros = [agent.run() for agent in agents]
     result = self.executor.submit(coros)
