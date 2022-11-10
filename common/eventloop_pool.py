@@ -73,7 +73,7 @@ class AsyncBatchedForward:
 
     return False
   
-  def __flush(self):
+  async def __flush(self):
     futures = []
     tensors = []
     self.time_last_flush = time.time()
@@ -84,7 +84,9 @@ class AsyncBatchedForward:
       tensors.append(tensor)
 
     tensors = torch.stack(tensors, dim=0)
-    outputs = self.batched_forward(tensors)
+    async def batched_forward():
+      return self.batched_forward(tensors)
+    outputs = asyncio.run_coroutine_threadsafe(batched_forward(), loop=self.loop).result()
 
     for future, output in zip(futures, outputs):
       future.set_result(output)
@@ -97,7 +99,7 @@ class AsyncBatchedForward:
     self.call_stack.append(self.call_stack_entry(future, args, kwargs))
 
     if self.__should_flush():
-      self.__flush()
+      await self.__flush()
     
     result = await future
     return result
@@ -107,12 +109,6 @@ class AsyncBatchedForward:
 
   async def __call__(self, *args, **kwargs):
     current_loop = asyncio.get_running_loop()
-    future = current_loop.create_future()
-    def call_back(f):
-      current_loop.call_soon_threadsafe(future.set_result, f.result())
-
-    concurrent_future = asyncio.run_coroutine_threadsafe(self.__batch_call(*args, **kwargs), loop=self.loop)
-    concurrent_future.add_done_callback(call_back)
-    result = await future
-    return result
+    future = current_loop.create_task(self.__batch_call(*args, **kwargs))
+    return await future
     
