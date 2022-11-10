@@ -53,9 +53,9 @@ class EventLoopPool:
 
 
 class AsyncBatchedForward:
-  def __init__(self, batched_forward:callable, batch_size:int=0, timeout:int=0, loop:asyncio.AbstractEventLoop=None):
+  def __init__(self, batched_func:callable, batch_size:int=0, timeout:int=0, loop:asyncio.AbstractEventLoop=None):
     self.loop = asyncio.get_event_loop() if loop is None else loop
-    self.batched_forward = batched_forward
+    self.batched_func = batched_func
     self.timeout = timeout
 
     self.batch_size = batch_size
@@ -75,18 +75,14 @@ class AsyncBatchedForward:
   
   async def __flush(self):
     futures = []
-    tensors = []
+    inputs = []
+    
     self.time_last_flush = time.time()
     for entry in self.call_stack:
       futures.append(entry.future)
-      tensor = entry.args[0]
-      tensor = tensor.squeeze(0)
-      tensors.append(tensor)
+      inputs.append((entry.args, entry.kwargs))
 
-    tensors = torch.stack(tensors, dim=0)
-    async def batched_forward():
-      return self.batched_forward(tensors)
-    outputs = asyncio.run_coroutine_threadsafe(batched_forward(), loop=self.loop).result()
+    outputs = self.batched_func(inputs)
 
     for future, output in zip(futures, outputs):
       future.set_result(output)
