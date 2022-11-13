@@ -1,7 +1,7 @@
 
 from torch.utils.data import IterableDataset, Dataset
 
-class MemoryBank(IterableDataset):
+class MemoryBank(Dataset):
   def __init__(self, capacity:int=200000):
     super().__init__()
     self.capacity = capacity

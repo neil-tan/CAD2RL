@@ -4,12 +4,12 @@ from collections import namedtuple
 import numpy as np
 from .memory_bank import MemoryBank
 from typing import Iterable, Union, Callable, Tuple, List, Dict, Any
-from ..common.eventloop_pool import EventLoopPool
+from .eventloop_pool import EventLoopPool
 
 class Agent:
   def __init__(self, env_maker:callable, q_function:asyncio.coroutine, epsilon=0.5):
     self.env = env_maker()
-    self.state = self.env.reset()
+    self.state, info = self.env.reset()
     self.q_function = q_function
     self.epsilon = epsilon
     self.Q_Element = namedtuple('Q_Entry', ['state', 'action', 'reward', 'new_state'])
@@ -27,7 +27,7 @@ class Agent:
       self.state = new_state
   
   async def run(self) -> list:
-    self.state = self.env.reset()
+    self.state, info = self.env.reset()
     trace = []
     async for state, action, reward, new_state in self.step():
       q_element = self.Q_Element(state, action, reward, new_state)
@@ -43,7 +43,6 @@ class AgentAnimator:
     self.agents = []
     self.executor = EventLoopPool(num_workers=threads)
     self.q_function = q_function
-    self.state_batch = []
 
     for _ in range(num_agents):
       self.agents.append(Agent(env_maker, self.q_function))
