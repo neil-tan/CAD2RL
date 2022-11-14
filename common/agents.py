@@ -7,7 +7,7 @@ from typing import Iterable, Union, Callable, Tuple, List, Dict, Any
 from .eventloop_pool import EventLoopPool
 
 class Agent:
-  def __init__(self, env_maker:callable, q_function:asyncio.coroutine, epsilon=0.5):
+  def __init__(self, env_maker:callable, q_function:asyncio.coroutine, epsilon=0.2):
     self.env = env_maker()
     self.state, info = self.env.reset()
     self.q_function = q_function

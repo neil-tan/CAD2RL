@@ -23,13 +23,31 @@ from torch.utils.data import Dataset, DataLoader
 from wrapt import synchronized
 
 # %%
+def animate_policy(policy:callable):
+  env = gym.make('CartPole-v1', render_mode="rgb_array")
+  state, info = env.reset()
+  image_seq = []
+
+  done = False
+  while not done:
+    state, reward, done, truncated, info = env.step(policy(state))
+    image_seq.append(env.render())
+
+  return animate(image_seq)
+
+# %%
+animate_policy(lambda state: np.random.randint(0,1))
+
+# %%
 class DeepQLearning:
-  def __init__(self, env_maker, memory_size=5000):
+  def __init__(self, env_maker, memory_size=10000, batch_size=128):
     self.memory_size = memory_size
+    self.batch_size = batch_size
     self.memory_bank = MemoryBank(capacity=memory_size)
     self.action_network = self.create_network(num_states=4, num_actions=2)
     self.target_network = self.create_network(num_states=4, num_actions=2)
-    self.animator = AgentAnimator(env_maker, num_agents=16, q_function=self.q_function)
+    self.sync_target_network()
+    self.animator = AgentAnimator(env_maker, num_agents=24, q_function=self.q_function)
 
     self.action_network.float()
     self.target_network.float()
@@ -37,7 +55,7 @@ class DeepQLearning:
     self.loop = asyncio.get_event_loop()
 
     self.animator.fill(self.memory_bank)
-    self.data_loader = DataLoader(self.memory_bank, batch_size=32, shuffle=True)
+    # self.data_loader = DataLoader(self.memory_bank, batch_size=batch_size, shuffle=True)
 
   # input: self.Q_Element = namedtuple('Q_Entry', ['state', 'action', 'reward', 'new_state'])
   # def forward(self, state):
@@ -49,45 +67,45 @@ class DeepQLearning:
 
   # TODO: RUN THIS
   def train(self):
-    gamma = 0.95
-    lr = 0.01
-    copy_epoch = 25
+    gamma = 0.999
+    lr = 0.1
+    copy_epoch = 10
 
-    loss_func = torch.nn.MSELoss()
+    # loss_func = torch.nn.MSELoss()
+    loss_func = torch.nn.SmoothL1Loss()
     self.target_network.train(False)
     self.action_network.train(True)
-    
+
+    optimizer = torch.optim.SGD(self.action_network.parameters(), lr=lr)
+
     average_epoch_loss = 0
 
-    for epoch in range(1000):
-      n_replaced_runs = self.memory_size // 10
-      self.animator.fill(self.memory_bank, num_runs=n_replaced_runs)
+    for i in range(1000):
+      state, action, reward, new_state = self.memory_bank.sample(self.batch_size)
 
-      for batch in self.data_loader:
-        state, action, reward, new_state = batch
-        reward = reward.float()
-        qs_target = self.target_network(new_state)
-        y = reward + gamma * torch.max(qs_target, dim=1).values
-        qs_action = self.action_network(state)
-        q = torch.gather(qs_action, dim=1, index=action.unsqueeze(1)).squeeze(1)
+      reward = reward.float()
+      qs_target = self.target_network(new_state)
+      y = reward + gamma * torch.max(qs_target, dim=1).values
+      qs_action = self.action_network(state)
+      q = torch.gather(qs_action, dim=1, index=action.unsqueeze(1)).squeeze(1)
         
-        loss = loss_func(y, q)
-        average_epoch_loss += loss.item()
+      loss = loss_func(y, q)
+      average_epoch_loss += loss.item()
 
-        self.action_network.zero_grad()
-        loss.backward()
+      loss.backward()
+      optimizer.step()
+      optimizer.zero_grad()
 
-        with torch.no_grad():
-          for param in self.action_network.parameters():
-            param -= lr * param.grad
+      self.animator.fill(self.memory_bank, num_runs=self.batch_size)
       
-      if epoch % copy_epoch == 0:
-        self.target_network.load_state_dict(self.action_network.state_dict())
+      if i % copy_epoch == 0:
+        self.sync_target_network()
         print(average_epoch_loss/copy_epoch)
       
       average_epoch_loss = 0
-        
-
+  
+  def sync_target_network(self):
+    self.target_network.load_state_dict(self.action_network.state_dict())
 
   @synchronized
   def q_function(self, state):
@@ -109,18 +127,11 @@ class DeepQLearning:
 
 
 # %%
-test_obj =  DeepQLearning(env_maker=lambda: gym.make('CartPole-v1', render_mode="rgb_array"))
+test_obj = DeepQLearning(env_maker=lambda: gym.make('CartPole-v1', render_mode="rgb_array"))
 test_obj.train()
 
-# %%
-# Hyperparameters
-alpha = 0.1
-gamma = 0.95
-epsilon_curiosity = 0.15
-max_epoch = 55000
-
 print("Training finished")
-
-
+# %%
+animate_policy(lambda state: test_obj.q_function(state))
 
 # %%
