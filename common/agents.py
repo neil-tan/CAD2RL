@@ -48,7 +48,10 @@ class AgentAnimator:
       self.agents.append(Agent(env_maker, self.q_function))
 
   
+  # returns average length of traces
   def fill(self, memory_bank:MemoryBank, num_runs:int=0):
+    average_length = 0
+
     if num_runs == 0:
       assert num_runs <= memory_bank.capacity, "num_runs must be less than or equal to memory_size"
       num_runs = memory_bank.capacity
@@ -58,17 +61,24 @@ class AgentAnimator:
     num_batches = num_runs // self.num_agents
     remainder_runs = num_runs % self.num_agents
 
-    for _ in range(num_batches):
-      traces = self.run_all()
+    def traces_to_memory_bank(traces):
+      nonlocal average_length
       for trace in traces:
+        average_length += len(trace)
         for q_element in trace:
           memory_bank.add(q_element)
     
+
+    for _ in range(num_batches):
+      traces = self.run_all()
+      traces_to_memory_bank(traces)
+    
     if remainder_runs > 0:
       traces = self.run_all(self.agents[:remainder_runs])
-      for trace in traces:
-        for q_element in trace:
-          memory_bank.add(q_element)
+      traces_to_memory_bank(traces)
+
+    average_length /= num_runs
+    return average_length
 
   def run_all(self, agents:List[Agent]=None):
     if agents is None:

@@ -68,8 +68,8 @@ class DeepQLearning:
   # TODO: RUN THIS
   def train(self):
     gamma = 0.999
-    lr = 0.1
-    copy_epoch = 10
+    lr = 0.001
+    copy_iter = 2
 
     # loss_func = torch.nn.MSELoss()
     loss_func = torch.nn.SmoothL1Loss()
@@ -96,11 +96,11 @@ class DeepQLearning:
       optimizer.step()
       optimizer.zero_grad()
 
-      self.animator.fill(self.memory_bank, num_runs=self.batch_size)
+      batch_average_trace_lens = self.animator.fill(self.memory_bank, num_runs=self.batch_size)
       
-      if i % copy_epoch == 0:
+      if i % copy_iter == 0:
         self.sync_target_network()
-        print(average_epoch_loss/copy_epoch)
+        print("average len: ", batch_average_trace_lens, "sync loss: ", average_epoch_loss/copy_iter)
       
       average_epoch_loss = 0
   
