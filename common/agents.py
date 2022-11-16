@@ -24,6 +24,9 @@ class Agent:
     done, truncated, info = False, False, None
     while not done and not truncated:
       new_state, reward, done, truncated, info = self.env.step(action)
+      # FIXME:
+      if done and not truncated:
+        reward = -1
       yield self.state, action, reward, new_state
       self.state = new_state
   

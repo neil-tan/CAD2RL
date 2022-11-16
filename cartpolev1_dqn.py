@@ -41,22 +41,19 @@ def animate_policy(policy:callable):
 animate_policy(lambda state: np.random.randint(0,1))
 
 # %%
+# animation_holder = []
+# %%
 class DQN(nn.Module):
     def __init__(self, num_states, num_actions):
         super(DQN, self).__init__()
         self.num_states = num_states
         self.module = nn.Sequential(
             nn.Conv1d(1, 32, kernel_size=num_states, stride=1),
-            nn.Conv1d(32, 128, kernel_size=1, stride=1),
             nn.ReLU(),
-            nn.Conv1d(128, 256, kernel_size=1, stride=1),
-            nn.ReLU(),
-            nn.Conv1d(256, 256, kernel_size=1, stride=1),
-            nn.ReLU(),
-            nn.Conv1d(256, 128, kernel_size=1, stride=1),
+            nn.Conv1d(32, 32, kernel_size=1, stride=1),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(128, num_actions),
+            nn.Linear(32, num_actions),
         )
 
     # Called with either one element to determine next action, or a batch
@@ -67,7 +64,7 @@ class DQN(nn.Module):
       return out
 # %%
 class DeepQLearning:
-  def __init__(self, env_maker, memory_size=10000, batch_size=128):
+  def __init__(self, env_maker, memory_size=1000, batch_size=64):
     self.memory_size = memory_size
     self.batch_size = batch_size
     self.memory_bank = MemoryBank(capacity=memory_size)
@@ -99,7 +96,7 @@ class DeepQLearning:
     # gamma = 1
     lr = 0.01
     copy_iter = 10
-    n_episode = int(self.memory_size / self.batch_size * 50)
+    n_episode = 150
     max_reward = 0
 
     loss_func = torch.nn.MSELoss()
@@ -119,8 +116,10 @@ class DeepQLearning:
       copy_iter_average_reward = 0
       while not done and not truncated:
         with torch.no_grad():
-          action = self.select_action(state, epsilon=0.3*(1 - i/n_episode))
+          action = self.select_action(state, epsilon=max(0.85*(1 - i/50), 0.01))
           new_state, reward, done, truncated, info = self.env.step(action)
+          if done and not truncated:
+            reward = -1
           self.memory_bank.add(Q_Element(state, action, reward, new_state))
           state = new_state
 
@@ -149,8 +148,9 @@ class DeepQLearning:
       
       if total_reward > max_reward:
         max_reward = total_reward
-        # self.sync_target_network()
+        self.save_best_param()
         past_episode_max_reward = True
+        # animation_holder.append(animate_policy(lambda state: test_obj.q_function(state)))
         
       if i % copy_iter == 0:
         self.sync_target_network()
@@ -161,12 +161,21 @@ class DeepQLearning:
           print("rolling reward: ", copy_iter_average_reward, "sync loss: ", loss.item())
         copy_iter_average_reward = 0
   
+    self.load_best_param()
     print("max reward: ", max_reward)
 
   
   def sync_target_network(self):
     with torch.no_grad():
       self.target_network.load_state_dict(self.action_network.state_dict())
+
+  def save_best_param(self):
+    with torch.no_grad():
+      self.beset_param = copy.deepcopy(self.action_network.state_dict())
+
+  def load_best_param(self):
+    with torch.no_grad():
+      self.action_network.load_state_dict(self.beset_param)
 
   @synchronized
   def q_function(self, state):
@@ -186,4 +195,6 @@ print("Training finished")
 # %%
 animate_policy(lambda state: test_obj.q_function(state))
 
+# %%
+# animation_holder[8]
 # %%
