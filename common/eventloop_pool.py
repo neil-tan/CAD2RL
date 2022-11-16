@@ -48,7 +48,7 @@ class EventLoopPool:
       loop.stop()
     
     for loop in self.loops:
-      loop.call_soon_threadsafe(stop_loop(loop))
+      loop.call_soon_threadsafe(stop_loop, loop)
       loop.call_soon_threadsafe(loop.stop)
 
 

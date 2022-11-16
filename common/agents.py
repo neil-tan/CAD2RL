@@ -6,13 +6,14 @@ from .memory_bank import MemoryBank
 from typing import Iterable, Union, Callable, Tuple, List, Dict, Any
 from .eventloop_pool import EventLoopPool
 
+Q_Element = namedtuple('Q_Entry', ['state', 'action', 'reward', 'new_state'])
 class Agent:
-  def __init__(self, env_maker:callable, q_function:asyncio.coroutine, epsilon=0.2):
+  def __init__(self, env_maker:callable, q_function:asyncio.coroutine, epsilon=0.7):
     self.env = env_maker()
     self.state, info = self.env.reset()
     self.q_function = q_function
     self.epsilon = epsilon
-    self.Q_Element = namedtuple('Q_Entry', ['state', 'action', 'reward', 'new_state'])
+    self.Q_Element = Q_Element
 
   async def step(self):
     if np.random.random() < self.epsilon:
@@ -26,7 +27,10 @@ class Agent:
       yield self.state, action, reward, new_state
       self.state = new_state
   
-  async def run(self) -> list:
+  async def run(self, epsilon=None) -> list:
+    if epsilon is not None:
+      self.set_epsilon(epsilon)
+
     self.state, info = self.env.reset()
     trace = []
     async for state, action, reward, new_state in self.step():
@@ -34,6 +38,9 @@ class Agent:
       trace.append(q_element)
     
     return trace
+  
+  def set_epsilon(self, epsilon):
+    self.epsilon = epsilon
 
 
 class AgentAnimator:
@@ -49,7 +56,7 @@ class AgentAnimator:
 
   
   # returns average length of traces
-  def fill(self, memory_bank:MemoryBank, num_runs:int=0):
+  def fill(self, memory_bank:MemoryBank, num_runs:int=0, epsilon=0.7):
     average_length = 0
 
     if num_runs == 0:
@@ -70,20 +77,20 @@ class AgentAnimator:
     
 
     for _ in range(num_batches):
-      traces = self.run_all()
+      traces = self.run_all(epsilon=epsilon)
       traces_to_memory_bank(traces)
     
     if remainder_runs > 0:
-      traces = self.run_all(self.agents[:remainder_runs])
+      traces = self.run_all(self.agents[:remainder_runs], epsilon=epsilon)
       traces_to_memory_bank(traces)
 
     average_length /= num_runs
     return average_length
 
-  def run_all(self, agents:List[Agent]=None):
+  def run_all(self, agents:List[Agent]=None, epsilon=0.7):
     if agents is None:
       agents = self.agents
 
-    coros = [agent.run() for agent in agents]
+    coros = [agent.run(epsilon=epsilon) for agent in agents]
     result = self.executor.submit(coros)
     return result

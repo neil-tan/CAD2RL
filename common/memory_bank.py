@@ -8,7 +8,6 @@ class MemoryBank(Dataset):
     super().__init__()
     self.capacity = capacity
     self.memory = []
-    self.memory_pointer = 0
 
   def __getitem__(self, index):
     return self.memory[index]
@@ -30,10 +29,10 @@ class MemoryBank(Dataset):
       reward.append(sample.reward)
       new_state.append(sample.new_state)
     
-    state = torch.tensor(state, dtype=torch.float32)
-    action = torch.tensor(action, dtype=torch.int64)
-    reward = torch.tensor(reward, dtype=torch.float32)
-    new_state = torch.tensor(new_state, dtype=torch.float32)
+    state = torch.tensor(state).detach()
+    action = torch.tensor(action, dtype=torch.int64).detach()
+    reward = torch.tensor(reward).detach()
+    new_state = torch.tensor(new_state).detach()
     
     return state, action, reward, new_state
 
