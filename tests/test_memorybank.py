@@ -1,5 +1,6 @@
 import pytest
 from ..common.memory_bank import MemoryBank
+from ..common.agents import Q_Element
 
 def test_add(capsys):
   memory_bank = MemoryBank(10)
@@ -40,3 +41,14 @@ def test_iter(capsys):
   for i, item in enumerate(memory_bank):
     assert item == i
 
+def test_sample(capsys):
+  memory_bank = MemoryBank(10)
+  for i in range(0,10):
+    memory_bank.add(Q_Element(i,i,i,i))
+    assert len(memory_bank.memory) == i+1
+  
+  state, action, reward, new_state = memory_bank.sample(5)
+  assert len(state) == 5
+  assert len(action) == 5
+  assert len(reward) == 5
+  assert len(new_state) == 5

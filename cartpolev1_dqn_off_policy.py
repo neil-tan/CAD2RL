@@ -41,19 +41,17 @@ def animate_policy(policy:callable):
 animate_policy(lambda state: np.random.randint(0,1))
 
 # %%
-# animation_holder = []
-# %%
 class DQN(nn.Module):
     def __init__(self, num_states, num_actions):
         super(DQN, self).__init__()
         self.num_states = num_states
         self.module = nn.Sequential(
-            nn.Conv1d(1, 32, kernel_size=num_states, stride=1),
+            nn.Conv1d(1, 16, kernel_size=num_states, stride=1),
             nn.ReLU(),
-            nn.Conv1d(32, 32, kernel_size=1, stride=1),
+            nn.Conv1d(16, 16, kernel_size=1, stride=1),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(32, num_actions),
+            nn.Linear(16, num_actions),
         )
 
     # Called with either one element to determine next action, or a batch
@@ -78,9 +76,7 @@ class DeepQLearning:
     with torch.no_grad():
       animator = AgentAnimator(env_maker, num_agents=24, q_function=self.q_function)
       animator.fill(self.memory_bank, epsilon=1)
-    # self.data_loader = DataLoader(self.memory_bank, batch_size=batch_size, shuffle=True)
 
-  # TODO: check here
   def select_action(self, state, epsilon=0.3):
     with torch.no_grad():
       if random.random() > epsilon:
@@ -93,10 +89,9 @@ class DeepQLearning:
 
   def train(self):
     gamma = 0.999
-    # gamma = 1
     lr = 0.01
     copy_iter = 10
-    n_episode = 150
+    n_episode = 130
     max_reward = 0
 
     loss_func = torch.nn.MSELoss()
@@ -116,7 +111,7 @@ class DeepQLearning:
       copy_iter_average_reward = 0
       while not done and not truncated:
         with torch.no_grad():
-          action = self.select_action(state, epsilon=max(0.85*(1 - i/50), 0.01))
+          action = self.select_action(state, epsilon=max(0.85*(1 - i/35), 0.005))
           new_state, reward, done, truncated, info = self.env.step(action)
           if done and not truncated:
             reward = -1
@@ -130,9 +125,8 @@ class DeepQLearning:
           y = y.detach()
 
         qs_action = self.action_network(b_state)
-        # q = torch.gather(qs_action, dim=1, index=b_action.unsqueeze(1)).squeeze(1)
-        q = qs_action.gather(1, b_action.long().unsqueeze(-1)).squeeze(-1)
-        # y = torch.ones_like(y)
+        q = torch.gather(qs_action, dim=1, index=b_action.long().unsqueeze(1)).squeeze(1)
+        # q = qs_action.gather(1, b_action.long().unsqueeze(-1)).squeeze(-1)
           
         loss = loss_func(q, y)
 
@@ -150,7 +144,6 @@ class DeepQLearning:
         max_reward = total_reward
         self.save_best_param()
         past_episode_max_reward = True
-        # animation_holder.append(animate_policy(lambda state: test_obj.q_function(state)))
         
       if i % copy_iter == 0:
         self.sync_target_network()
@@ -194,7 +187,4 @@ test_obj.train()
 print("Training finished")
 # %%
 animate_policy(lambda state: test_obj.q_function(state))
-
-# %%
-# animation_holder[8]
 # %%
