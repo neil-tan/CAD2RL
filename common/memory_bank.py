@@ -21,20 +21,22 @@ class MemoryBank(Dataset):
   
   def sample(self, batch_size):
     batch = random.sample(self.memory, batch_size)
-    state, action, reward, new_state = [], [], [], []
+    state, action, reward, new_state, discounted_reward= [], [], [], [], []
     
     for sample in batch:
       state.append(sample.state)
       action.append(sample.action)
       reward.append(sample.reward)
       new_state.append(sample.new_state)
+      discounted_reward.append(sample.discounted_reward)
     
     state = torch.tensor(state).detach()
     action = torch.tensor(action, dtype=torch.int64).detach()
     reward = torch.tensor(reward).detach()
     new_state = torch.tensor(new_state).detach()
+    discounted_reward = torch.tensor(discounted_reward).detach()
     
-    return state, action, reward, new_state
+    return state, action, reward, new_state, discounted_reward
 
   def add(self, item):
     is_full = len(self.memory) >= self.capacity

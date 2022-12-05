@@ -12,7 +12,7 @@ from termcolor import colored
 import gym
 from common.jupyter_animation import animate, animation_table
 from common.memory_bank import MemoryBank
-from common.agents import AgentAnimator, Q_Element
+from common.agents import AgentAnimator, T_Element
 from typing import Iterable, Union, Callable, Tuple, List, Dict, Any
 import time
 import random
@@ -115,10 +115,10 @@ class DeepQLearning:
           new_state, reward, done, truncated, info = self.env.step(action)
           if done and not truncated:
             reward = -1
-          self.memory_bank.add(Q_Element(state, action, reward, new_state))
+          self.memory_bank.add(T_Element(state, action, reward, new_state, 0))
           state = new_state
 
-          b_state, b_action, b_reward, b_new_state = self.memory_bank.sample(self.batch_size)
+          b_state, b_action, b_reward, b_new_state, _ = self.memory_bank.sample(self.batch_size)
          
           qs_target = self.target_network(b_new_state)
           y = b_reward + gamma * qs_target.max(1)[0]

@@ -16,7 +16,7 @@ def test_agent_animator_run_all():
   for trace in traces:
     assert len(trace) > 0
     for q_element in trace:
-      assert len(q_element) == 4
+      assert len(q_element) == 5
 
 def test_agent_animator():
   memory_bank = MemoryBank(capacity=1000)
