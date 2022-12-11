@@ -152,8 +152,8 @@ class VPG:
     input = torch.tensor(state)
     output = self.policy_network(input)
     action_prob = F.softmax(output, dim=-1)
-    output = output.detach().numpy()
-    action = int(np.argmax(output))
+    dist = torch.distributions.Categorical(action_prob)
+    action = dist.sample()
     return action
 
 

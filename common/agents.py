@@ -5,6 +5,7 @@ import numpy as np
 from .memory_bank import MemoryBank
 from typing import Iterable, Union, Callable, Tuple, List, Dict, Any
 from .eventloop_pool import EventLoopPool
+import torch
 
 T_Element = namedtuple('Q_Entry', ['state', 'action', 'reward', 'new_state', 'discounted_reward'])
 class Agent:
@@ -20,6 +21,7 @@ class Agent:
       action = self.env.action_space.sample()
     else:
       action = self.q_function(self.state)
+      action = action.item() if isinstance(action, torch.Tensor) else action
     # new_state, reward, done, truncated, info
     done, truncated, info = False, False, None
     while not done and not truncated:
