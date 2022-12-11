@@ -52,7 +52,13 @@ class MLP(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, num_actions)
         )
-    
+
+        self.apply(self.init_weights)
+
+    def init_weights(self, m):
+      if type(m) == nn.Linear:
+          torch.nn.init.xavier_normal_(m.weight)
+          m.bias.data.fill_(0.01)
 
     def forward(self, x):
       x = x.reshape(-1, 1, self.num_states)
@@ -60,54 +66,74 @@ class MLP(nn.Module):
       return out
 # %%
 class VPG:
-  def __init__(self, env_maker, memory_size=1000, batch_size=1):
-    self.memory_size = memory_size
-    self.batch_size = batch_size
-    self.memory_bank = MemoryBank(capacity=memory_size)
-    self.policy_network = MLP(num_states=4, hidden_dim=128, num_actions=2)
-    self.env_maker = env_maker
+  def __init__(self, env_maker, batch_size=1):
+    self.policy_network = MLP(num_states=4, hidden_dim=32, num_actions=2)
+    self.env = env_maker()
 
   def train(self):
-    lr = 0.01
-    print_iter = 1000
-    n_episode = 15000
-    max_reward = 0
+    lr = 0.001
+    n_episode = 5000
+    print_iter = 100
 
-    # loss_func = torch.nn.SmoothL1Loss()
-
+    self.policy_network.train()
     optimizer =  torch.optim.Adam(self.policy_network.parameters(), lr=lr)
 
     accumlated_reward = 0
+    max_reward = 0
     past_episode_max_reward = False
+
+
     print("n_episode: ", n_episode)
-    for i in range(1, n_episode+1):      
+    for i in range(1, n_episode+1):    
+      state, info = self.env.reset()
+      done = False
+      truncated = False
+      rewards = []
+      log_prob_actions = []
+      episode_reward = 0
 
-      animator = AgentAnimator(self.env_maker, num_agents=1, q_function=self.select_action)
-      animator.fill(self.memory_bank, num_runs=1, epsilon=0)
+      while not done and not truncated:
+        state = torch.tensor(state)
+        action_pred = self.policy_network(state)
+        action_prob = F.softmax(action_pred, dim=-1)
+        dist = torch.distributions.Categorical(action_prob)
+        action = dist.sample()
+        log_pro_action = dist.log_prob(action)
 
-      b_state, b_action, b_reward, b_new_state, discounted_reward = self.memory_bank.sample(len(self.memory_bank))
-      discounted_reward = discounted_reward.detach()
+        state, reward, done, truncated, info = self.env.step(action.item())
+        rewards.append(reward)
+        log_prob_actions.append(log_pro_action)
 
-      at_st = self.policy_network(b_state)
-      loss = torch.log(at_st) * discounted_reward.unsqueeze(1)
-      loss = - loss.sum()
+        episode_reward += reward
+
+      # Convert Trojectory to Tensors
+      log_prob_actions = torch.cat(log_prob_actions)
+      returns = self.calculate_returns(rewards, discount_factor=0.99)
+
+      # Update Policy
+      returns = returns.detach()
+      loss = -log_prob_actions * returns
+      loss = loss.sum()
 
       loss.backward()
-
-      for param in self.policy_network.parameters():
-        param.grad.data.clamp_(-1, 1)
-
       optimizer.step()
       optimizer.zero_grad()
-
-      self.memory_bank.clear_memory()
-
-
-      reward = b_reward.sum().item()
-      accumlated_reward += reward
       
-      if reward > max_reward:
-        max_reward = reward
+
+      # at_st = self.policy_network(b_state)
+      # loss = torch.log(at_st) * discounted_reward.unsqueeze(1)
+      # loss = - loss.sum()
+
+      # for param in self.policy_network.parameters():
+      #   param.grad.data.clamp_(-1, 1)
+
+
+
+      trace_reward = sum(rewards)
+      accumlated_reward += trace_reward
+      
+      if trace_reward > max_reward:
+        max_reward = trace_reward
         self.save_best_param()
         past_episode_max_reward = True
         
@@ -146,15 +172,6 @@ class VPG:
   def load_best_param(self):
     with torch.no_grad():
       self.policy_network.load_state_dict(self.best_param)
-
-  @synchronized
-  def select_action(self, state):
-    input = torch.tensor(state)
-    output = self.policy_network(input)
-    action_prob = F.softmax(output, dim=-1)
-    dist = torch.distributions.Categorical(action_prob)
-    action = dist.sample()
-    return action
 
 
 # %%
