@@ -67,13 +67,15 @@ class MLP(nn.Module):
 # %%
 class VPG:
   def __init__(self, env_maker, batch_size=1):
-    self.policy_network = MLP(num_states=4, hidden_dim=32, num_actions=2)
+    self.policy_network = MLP(num_states=4, hidden_dim=32, num_actions=2, dropout=0.7)
     self.env = env_maker()
 
   def train(self):
     lr = 0.001
-    n_episode = 5000
+    n_episode = 15000
     print_iter = 100
+    discount_factor = 0.999
+    gradient_clip = 1
 
     self.policy_network.train()
     optimizer =  torch.optim.Adam(self.policy_network.parameters(), lr=lr)
@@ -108,7 +110,7 @@ class VPG:
 
       # Convert Trojectory to Tensors
       log_prob_actions = torch.cat(log_prob_actions)
-      returns = self.calculate_returns(rewards, discount_factor=0.99)
+      returns = self.calculate_returns(rewards, discount_factor=discount_factor)
 
       # Update Policy
       returns = returns.detach()
@@ -116,6 +118,7 @@ class VPG:
       loss = loss.sum()
 
       loss.backward()
+      torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), gradient_clip)
       optimizer.step()
       optimizer.zero_grad()
       
@@ -173,6 +176,12 @@ class VPG:
     with torch.no_grad():
       self.policy_network.load_state_dict(self.best_param)
 
+  def select_action(self, state):
+    with torch.no_grad():
+      input = torch.tensor(state)
+      output = self.policy_network(input).detach().numpy()
+      action = int(np.argmax(output))
+      return action
 
 # %%
 test_obj = VPG(env_maker=lambda: gym.make('CartPole-v1', render_mode="rgb_array"))
