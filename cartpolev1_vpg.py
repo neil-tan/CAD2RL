@@ -95,25 +95,27 @@ class VPG:
       episode_reward = 0
 
       while not done and not truncated:
-        state = torch.tensor(state)
-        action_pred = self.policy_network(state)
-        action_prob = F.softmax(action_pred, dim=-1)
-        dist = torch.distributions.Categorical(action_prob)
-        action = dist.sample()
-        log_pro_action = dist.log_prob(action)
+        state = torch.tensor(state) # num_states [4]
+        action_pred = self.policy_network(state) # num_actions [batch, channel, actions] -> [1, 1, 2]
+        action_prob = F.softmax(action_pred, dim=-1) # num_actions [1, 1, 2]
+        dist = torch.distributions.Categorical(action_prob) # [1, 1, 2]
+        action = dist.sample() # [1, 1, 2] sampled to become [1, 1] -> [[int]]
+        log_prob_action = dist.log_prob(action) # log(action_prob[action]) -> [1, 1] -> [[float]]
 
         state, reward, done, truncated, info = self.env.step(action.item())
-        rewards.append(reward)
-        log_prob_actions.append(log_pro_action)
+        rewards.append(reward) # rewards -> list:[current_num_step + 1], reward -> float
+        log_prob_actions.append(log_prob_action) # [current_num_step + 1, channel, num_actions]
 
         episode_reward += reward
 
       # Convert Trojectory to Tensors
+      # Stacking list of [current_num_step + 1][1][float], to [current_num_step + 1, 1] -> [steps, sampled_distribution_element]
       log_prob_actions = torch.cat(log_prob_actions)
+      # return a list of discounted rewards [steps]
       returns = self.calculate_returns(rewards, discount_factor=discount_factor)
 
       # Update Policy
-      returns = returns.detach()
+      returns = returns.detach() # [steps]
       loss = -log_prob_actions * returns
       loss = loss.sum()
 
@@ -121,16 +123,6 @@ class VPG:
       torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), gradient_clip)
       optimizer.step()
       optimizer.zero_grad()
-      
-
-      # at_st = self.policy_network(b_state)
-      # loss = torch.log(at_st) * discounted_reward.unsqueeze(1)
-      # loss = - loss.sum()
-
-      # for param in self.policy_network.parameters():
-      #   param.grad.data.clamp_(-1, 1)
-
-
 
       trace_reward = sum(rewards)
       accumlated_reward += trace_reward
@@ -153,6 +145,16 @@ class VPG:
 
   
   def calculate_returns(self, rewards, discount_factor, normalize = True):
+    """ Calculate discounted returns from rewards
+    Args:
+      rewards list[float]: list of rewards for each step
+      discount_factor float: discount factor
+      normalize bool: normalize returns
+
+    Returns:
+      list[float]: list of discounted returns
+    """
+
     returns = []
     R = 0
     
