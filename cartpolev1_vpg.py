@@ -61,7 +61,7 @@ class MLP(nn.Module):
           m.bias.data.fill_(0.01)
 
     def forward(self, x):
-      x = x.reshape(-1, 1, self.num_states)
+      x = x.reshape(-1, self.num_states)
       out = self.module(x)
       return out
 # %%
@@ -71,10 +71,10 @@ class VPG:
     self.env = env_maker()
 
   def train(self):
-    lr = 0.001
-    n_episode = 15000
+    lr = 0.01
+    n_episode = 2500
     print_iter = 100
-    discount_factor = 0.999
+    discount_factor = 0.99
     gradient_clip = 1
 
     self.policy_network.train()
@@ -96,20 +96,20 @@ class VPG:
 
       while not done and not truncated:
         state = torch.tensor(state) # num_states [4]
-        action_pred = self.policy_network(state) # num_actions [batch, channel, actions] -> [1, 1, 2]
-        action_prob = F.softmax(action_pred, dim=-1) # num_actions [1, 1, 2]
-        dist = torch.distributions.Categorical(action_prob) # [1, 1, 2]
-        action = dist.sample() # [1, 1, 2] sampled to become [1, 1] -> [[int]]
-        log_prob_action = dist.log_prob(action) # log(action_prob[action]) -> [1, 1] -> [[float]]
+        action_pred = self.policy_network(state) # num_actions [1, actions] -> [1, 2]
+        action_prob = F.softmax(action_pred, dim=-1) # num_actions [1, 2]
+        dist = torch.distributions.Categorical(action_prob) # [1, 2]
+        action = dist.sample() # [1, 2] sampled to become [1] -> [int]
+        log_prob_action = dist.log_prob(action) # log(action_prob[action]) -> [1] -> [float]
 
         state, reward, done, truncated, info = self.env.step(action.item())
         rewards.append(reward) # rewards -> list:[current_num_step + 1], reward -> float
-        log_prob_actions.append(log_prob_action) # [current_num_step + 1, channel, num_actions]
+        log_prob_actions.append(log_prob_action) # [current_num_step + 1, num_actions]
 
         episode_reward += reward
 
       # Convert Trojectory to Tensors
-      # Stacking list of [current_num_step + 1][1][float], to [current_num_step + 1, 1] -> [steps, sampled_distribution_element]
+      # Stacking list of [current_num_step + 1][float], to [current_num_step + 1, 1] -> [sampled_distribution_elements]
       log_prob_actions = torch.cat(log_prob_actions)
       # return a list of discounted rewards [steps]
       returns = self.calculate_returns(rewards, discount_factor=discount_factor)
