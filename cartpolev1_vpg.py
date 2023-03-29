@@ -88,7 +88,7 @@ class VPG:
 
     print("n_episode: ", n_episode)
     for i in range(1, n_episode+1):    
-      _, _, rewards, log_prob_actions = sample_trajectory(self.env, self.policy_network, max_steps=1000)
+      _, _, log_prob_actions, rewards = sample_trajectory(self.env, self.policy_network, max_steps=1000)
 
       # return a list of discounted rewards [steps]
       returns = discounted_rewards(rewards, discount_factor=discount_factor)

@@ -115,7 +115,8 @@ class PPO:
   def V(self, state, critic:Callable=None):
     critic = self.critic_model if critic is None else critic
     state = torch.cat(state) if isinstance(state, list) else state
-    return critic(state) # [batch, 1]
+    result = critic(state).squeeze() # [batch, 1] -> [batch]
+    return result # [batch]
   
   def log_action_prob(self, state, action, policy:Callable=None):
     policy = self.actor_model if policy is None else policy
@@ -143,7 +144,7 @@ class PPO:
       actor_loss = -torch.min(surr1, surr2).mean()
 
       # critic loss
-      critic_loss = nn.MSELoss()(V.squeeze(), rewards)
+      critic_loss = nn.MSELoss()(V, rewards)
 
       # Updating the actor and critic
       self.actor_optim.zero_grad()

@@ -65,7 +65,7 @@ def sample_trajectory(env, policy:Callable, max_steps=1000):
   actions = list_to_tensor(actions)
   rewards = list_to_tensor(rewards)
 
-  return states, actions, rewards, log_prob_actions
+  return states, actions, log_prob_actions, rewards
 
 def discounted_rewards(rewards, discount_factor, normalize = True):
     """ Calculate discounted returns from rewards
