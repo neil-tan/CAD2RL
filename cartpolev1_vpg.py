@@ -13,6 +13,7 @@ import gym
 from common.jupyter_animation import animate, animation_table
 from common.memory_bank import MemoryBank
 from common.agents import AgentAnimator, T_Element
+from common.rl_common import sample_trajectory, discounted_rewards
 from typing import Iterable, Union, Callable, Tuple, List, Dict, Any
 import time
 import random
@@ -70,38 +71,6 @@ class VPG:
     self.policy_network = MLP(num_states=4, hidden_dim=32, num_actions=2, dropout=0.7)
     self.env = env_maker()
   
-  # compute the trajectory usin the current policy
-  # returns a list of rewards and a 1D-tensor of log probabilities of actions
-  def get_trajectory(self, max_steps=1000):
-    state, info = self.env.reset()
-    done = False
-    truncated = False
-    rewards = []
-    log_prob_actions = []
-    episode_reward = 0
-
-    while not done and not truncated:
-      state = torch.tensor(state) # num_states [4]
-      action_pred = self.policy_network(state) # num_actions [1, actions] -> [1, 2]
-      action_prob = F.softmax(action_pred, dim=-1) # num_actions [1, 2]
-      dist = torch.distributions.Categorical(action_prob) # [1, 2]
-      action = dist.sample() # [1, 2] sampled to become [1] -> [int]
-      log_prob_action = dist.log_prob(action) # log(action_prob[action]) -> [1] -> [floa  
-
-      state, reward, done, truncated, info = self.env.step(action.item())
-      rewards.append(reward) # rewards -> list:[current_num_step + 1], reward -> float
-      log_prob_actions.append(log_prob_action) # [current_num_step + 1, num_action  
-
-      episode_reward += reward
-      if len(rewards) > max_steps:
-        break
-      
-    # Convert Trojectory to Tensors
-    # Stacking list of [current_num_step + 1][float], to [current_num_step + 1, 1] -> [sampled_distribution_elements]
-    log_prob_actions = torch.cat(log_prob_actions)
-
-    return rewards, log_prob_actions
-
   def train(self):
     lr = 0.01
     n_episode = 2500
@@ -119,10 +88,10 @@ class VPG:
 
     print("n_episode: ", n_episode)
     for i in range(1, n_episode+1):    
-      rewards, log_prob_actions = self.get_trajectory()
+      _, _, rewards, log_prob_actions = sample_trajectory(self.env, self.policy_network, max_steps=1000)
 
       # return a list of discounted rewards [steps]
-      returns = self.calculate_returns(rewards, discount_factor=discount_factor)
+      returns = discounted_rewards(rewards, discount_factor=discount_factor)
 
       # Update Policy
       returns = returns.detach() # [steps]
@@ -152,32 +121,6 @@ class VPG:
 
     self.load_best_param()
     print("max reward: ", max_reward)
-
-  
-  def calculate_returns(self, rewards, discount_factor, normalize = True):
-    """ Calculate discounted returns from rewards
-    Args:
-      rewards list[float]: list of rewards for each step
-      discount_factor float: discount factor
-      normalize bool: normalize returns
-
-    Returns:
-      list[float]: list of discounted returns
-    """
-
-    returns = []
-    R = 0
-    
-    for r in reversed(rewards):
-        R = r + R * discount_factor
-        returns.insert(0, R)
-        
-    returns = torch.tensor(returns)
-    
-    if normalize:
-        returns = (returns - returns.mean()) / returns.std()
-        
-    return returns
 
 
   def save_best_param(self):

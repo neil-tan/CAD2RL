@@ -13,6 +13,7 @@ import gym
 from common.jupyter_animation import animate, animation_table
 from common.memory_bank import MemoryBank
 from common.agents import AgentAnimator, T_Element
+from common.rl_common import batch_trajectory, discounted_rewards
 from typing import Iterable, Union, Callable, Tuple, List, Dict, Any
 import time
 import random
@@ -23,7 +24,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import Adam
-
 
 from wrapt import synchronized
 
@@ -88,7 +88,7 @@ class MLP(nn.Module):
 
 # %%
 class PPO:
-  def __init__(self, env_maker, batch_size=32, lr=0.001, gamma=0.99, clip=0.2, epochs=1000, n_ppo_updates=5, max_steps=1000):
+  def __init__(self, env_maker, batch_size=64, lr=0.001, gamma=0.99, clip=0.2, epochs=1000, n_ppo_updates=3, max_steps=1000):
     # Initialize hyperparameters
     self.batch_size = batch_size
     self.lr = lr
@@ -102,8 +102,8 @@ class PPO:
     self.env = env_maker()
 
     # Initialize actor and critic models
-    self.actor_model = MLP(in_dim=4, hidden_dim=32, out_dim=2)
-    self.critic_model = MLP(in_dim=4, hidden_dim=32, out_dim=1)
+    self.actor_model = MLP(in_dim=4, hidden_dim=64, out_dim=2)
+    self.critic_model = MLP(in_dim=4, hidden_dim=64, out_dim=1)
 
     # Initialize optimizers for actor and critic
     self.actor_optim = Adam(self.actor_model.parameters(), lr=self.lr)
@@ -111,74 +111,6 @@ class PPO:
           
     # Initialize memory bank
     self.memory_bank = MemoryBank()
-
-
-  def get_action(self, state, policy:Callable=None):
-    policy = self.actor_model if policy is None else policy
-    action_pred = policy(state) # num_actions [1, actions] -> [1, 2]
-    action_prob = F.softmax(action_pred, dim=-1) # num_actions [1, 2]
-    dist = torch.distributions.Categorical(action_prob) # [1, 2]
-    action = dist.sample() # [1, 2] sampled to become [1] -> [int]
-    log_prob_action = dist.log_prob(action) # log(action_prob[action]) -> [1] # probability of action taken
-
-    if log_prob_action.dim() == 0:
-      log_prob_action = log_prob_action.unsqueeze(0)
-
-    return action, log_prob_action
-
-  
-  # compute the trajectory usin the current policy
-  # returns a list of rewards and a 1D-tensor of log probabilities of actions
-  def get_trajectory(self, max_steps=1000):
-    state, info = self.env.reset()
-    done = False
-    truncated = False
-    rewards = []
-    actions = []
-    observations = []
-    log_prob_actions = []
-    episode_reward = 0
-
-    while not done and not truncated:
-      observations.append(state) # observations -> list:[current_num_step + 1],
-      state = torch.tensor(state) # num_states [4]
-      action, log_prob_action = self.get_action(state)
-
-      actions.append(action.item()) # actions -> list:[current_num_step + 1], action -> int
-      state, reward, done, truncated, info = self.env.step(action.item())
-      rewards.append(reward) # rewards -> list:[current_num_step + 1], reward -> float
-      log_prob_actions.append(log_prob_action) # [current_num_step + 1, num_actions]
-
-      episode_reward += reward
-      if len(rewards) > max_steps:
-        break
-      
-    # Convert Trojectory to Tensors
-    # Stacking list of [current_num_step + 1][float], to [current_num_step + 1, 1] -> [sampled_distribution_elements]
-    log_prob_actions = torch.cat(log_prob_actions)
-
-    return observations, actions, log_prob_actions, rewards
-
-
-  def batch_trajectory(self, batch_size=1, max_steps=1000):
-    observations = []
-    actions = []
-    log_prob_actions = []
-    rewards = []
-
-    for _ in range(batch_size):
-      obs, act, log_prob_act, reward = self.get_trajectory(max_steps=max_steps)
-      observations.append(torch.tensor(obs))
-      actions.append(torch.tensor(act))
-      log_prob_actions.append(torch.tensor(log_prob_act))
-      rewards.append(torch.tensor(reward))
-
-    observations = torch.cat(observations)
-    actions = torch.cat(actions)
-    log_prob_actions = torch.cat(log_prob_actions)
-    rewards = torch.cat(rewards)
-
-    return observations, actions, log_prob_actions, rewards
 
   def V(self, state, critic:Callable=None):
     critic = self.critic_model if critic is None else critic
@@ -222,9 +154,6 @@ class PPO:
       critic_loss.backward()
       self.critic_optim.step()
 
-
-  
-
   def train(self):
     print_iter = 100
 
@@ -237,8 +166,9 @@ class PPO:
 
     print("n_episode: ", self.epochs)
     for i in range(1, self.epochs+1):    
-      batch_obs, batch_acts, batch_log_probs, rewards = self.batch_trajectory(batch_size=self.batch_size)
-      batch_reward_otgs = self.calculate_returns(rewards, discount_factor=self.gamma)
+      # compute the trajectory usin the current policy
+      batch_obs, batch_acts, batch_log_probs, rewards = batch_trajectory(self.env, self.actor_model, batch_size=self.batch_size, max_steps=self.max_steps)
+      batch_reward_otgs = discounted_rewards(rewards, discount_factor=self.gamma)
 
       V = self.V(batch_obs)
       A_k = rewards - V.detach()
@@ -250,7 +180,7 @@ class PPO:
       # PPO Update
       self.update_PPO(batch_obs, batch_acts, batch_log_probs, batch_reward_otgs, A_k, self.clip, epochs=5)
 
-      trace_reward = sum(rewards)
+      trace_reward = sum(rewards) / self.batch_size
       accumlated_reward += trace_reward
       
       if trace_reward > max_reward:
@@ -268,33 +198,6 @@ class PPO:
 
     self.load_best_param()
     print("max reward: ", max_reward)
-
-  
-  def calculate_returns(self, rewards, discount_factor, normalize = True):
-    """ Calculate discounted returns from rewards
-    Args:
-      rewards list[float]: list of rewards for each step
-      discount_factor float: discount factor
-      normalize bool: normalize returns
-
-    Returns:
-      list[float]: list of discounted returns
-    """
-
-    returns = []
-    R = 0
-    
-    for r in reversed(rewards):
-        R = r + R * discount_factor
-        returns.insert(0, R)
-        
-    returns = torch.tensor(returns)
-    
-    if normalize:
-        returns = (returns - returns.mean()) / returns.std()
-        
-    return returns
-
 
   def save_best_param(self):
     with torch.no_grad():
