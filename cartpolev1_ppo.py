@@ -88,7 +88,7 @@ class MLP(nn.Module):
 
 # %%
 class PPO:
-  def __init__(self, env_maker, batch_size=64, lr=0.001, gamma=0.99, clip=0.2, epochs=1000, n_ppo_updates=3, max_steps=1000):
+  def __init__(self, env_maker, batch_size=16, lr=0.0001, gamma=0.99, clip=0.2, epochs=1000, n_ppo_updates=3, max_steps=1000):
     # Initialize hyperparameters
     self.batch_size = batch_size
     self.lr = lr
@@ -131,6 +131,10 @@ class PPO:
     return log_prob_action
 
   def update_PPO(self, observations, actions, log_action_probs, rewards, advantages, clip, epochs):
+    advantages = advantages.detach()
+    actions = actions.detach()
+    log_action_probs = log_action_probs.detach()
+
     for _ in range(epochs):
       V = self.V(observations)
       new_action_log_probs = self.log_action_prob(observations, actions)
