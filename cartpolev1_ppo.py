@@ -65,7 +65,7 @@ def init_weights(m):
 
 # %%
 class PPO:
-  def __init__(self, env_maker, batch_size=1, lr=0.01, gamma=0.99, clip=0.2, epochs=500, n_ppo_updates=5, max_steps=1000, print_every=10):
+  def __init__(self, env_maker, batch_size=1, lr=0.01, gamma=0.99, clip=0.2, epochs=500, n_ppo_updates=5, max_steps=1000, stop_at_reward=500, print_every=10):
     # Initialize hyperparameters
     self.batch_size = batch_size
     self.lr = lr
@@ -75,6 +75,7 @@ class PPO:
     self.n_ppo_updates = n_ppo_updates
     self.max_steps = max_steps
     self.print_every = print_every
+    self.stop_at_reward = stop_at_reward
   
     # Initialize environment
     self.env = env_maker()
@@ -158,7 +159,7 @@ class PPO:
       # PPO Update
       self.update_PPO(batch_obs, batch_acts, batch_log_probs, batch_reward_otgs, A_k, self.clip, epochs=self.n_ppo_updates)
 
-      trace_reward = sum(rewards) / self.batch_size
+      trace_reward = sum(rewards).item() / self.batch_size
       accumlated_reward += trace_reward
       
       if trace_reward > max_reward:
@@ -173,6 +174,10 @@ class PPO:
         else:
           print("rolling reward: ", accumlated_reward/self.print_every)
         accumlated_reward = 0
+      
+      if trace_reward >= self.stop_at_reward:
+        print("Reached reward: ", self.stop_at_reward)
+        break
 
     self.load_best_param()
     print("max reward: ", max_reward)
