@@ -92,7 +92,8 @@ def discounted_rewards(rewards, discount_factor, normalize = True):
         
     return returns
 
-def batch_trajectory(env, policy:Callable, batch_size:int=1, max_steps=1000):
+# returns a batch of trajectories in flattened form
+def batch_trajectory(env, policy:Callable, batch_size:int=1, max_steps=1000, individual_trajectories=False):
   observations = []
   actions = []
   log_prob_actions = []
@@ -105,9 +106,11 @@ def batch_trajectory(env, policy:Callable, batch_size:int=1, max_steps=1000):
     log_prob_actions.append(log_prob_act)
     rewards.append(reward)
 
-  observations = torch.cat(observations)
-  actions = torch.cat(actions)
-  log_prob_actions = torch.cat(log_prob_actions)
-  rewards = torch.cat(rewards)
+  combinator_function = torch.stack if individual_trajectories else torch.cat
+
+  observations = combinator_function(observations)
+  actions = combinator_function(actions)
+  log_prob_actions = combinator_function(log_prob_actions)
+  rewards = combinator_function(rewards)
 
   return observations, actions, log_prob_actions, rewards
