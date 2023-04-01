@@ -106,33 +106,6 @@ def update_policy(networks, states, actions, log_prob_actions, advantages, retur
     
     return total_policy_loss / ppo_steps, total_value_loss / ppo_steps
 
-
-def calculate_returns(rewards, discount_factor, normalize = True):
-    
-    returns = []
-    R = 0
-    
-    for r in reversed(rewards):
-        R = r + R * discount_factor
-        returns.insert(0, R)
-        
-    returns = torch.tensor(returns)
-    
-    if normalize:
-        returns = (returns - returns.mean()) / returns.std()
-        
-    return returns
-
-def calculate_advantages(returns, values, normalize = True):
-    
-    advantages = returns - values
-    
-    if normalize:
-        
-        advantages = (advantages - advantages.mean()) / advantages.std()
-        
-    return advantages
-
 # %%
 class PPO:
   def __init__(self, env_maker, batch_size=1, lr=0.01, gamma=0.99, clip=0.2, epochs=1000, n_ppo_updates=5, max_steps=1000, print_every=10):
@@ -227,8 +200,7 @@ class PPO:
       batch_obs, batch_acts, batch_log_probs, rewards = batch_trajectory(self.env, self.actor_model, batch_size=self.batch_size, max_steps=self.max_steps)
 
       # compute the discounted rewards
-      # batch_reward_otgs = discounted_rewards(rewards, discount_factor=self.gamma)
-      batch_reward_otgs = calculate_returns(rewards, self.gamma)
+      batch_reward_otgs = discounted_rewards(rewards, discount_factor=self.gamma)
 
       # compute the advantage
       V = self.V(batch_obs)

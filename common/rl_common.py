@@ -114,3 +114,14 @@ def batch_trajectory(env, policy:Callable, batch_size:int=1, max_steps=1000, ind
   rewards = combinator_function(rewards)
 
   return observations, actions, log_prob_actions, rewards
+
+def log_action_prob(policy:Callable, state, action):
+  state = torch.cat(state) if isinstance(state, list) else state
+  action = torch.cat(action) if isinstance(action, list) else action
+
+  action_pred = policy(state) # num_actions [batch, action dims] -> [1, 2]
+  action_prob = F.softmax(action_pred, dim=-1) # num_actions [batch, 2]
+  dist = torch.distributions.Categorical(action_prob) # [batch, 2]
+  log_prob_action = dist.log_prob(action) # log(action_prob[action]) -> [batch] # probability of action taken
+  
+  return log_prob_action

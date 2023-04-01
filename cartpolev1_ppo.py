@@ -13,7 +13,7 @@ import gym
 from common.jupyter_animation import animate, animation_table
 from common.memory_bank import MemoryBank
 from common.agents import AgentAnimator, T_Element
-from common.rl_common import batch_trajectory, discounted_rewards
+from common.rl_common import batch_trajectory, discounted_rewards, log_action_prob
 from typing import Iterable, Union, Callable, Tuple, List, Dict, Any
 import time
 import random
@@ -44,7 +44,7 @@ def animate_policy(policy:callable):
 animate_policy(lambda state: np.random.randint(0,1))
 
 class MLP(nn.Module):
-    def __init__(self, in_dim, hidden_dim, out_dim, dropout = 0.2):
+    def __init__(self, in_dim, hidden_dim, out_dim, dropout = 0.5):
         super().__init__()
 
         self.fc_1 = nn.Linear(in_dim, hidden_dim)
@@ -65,7 +65,7 @@ def init_weights(m):
 
 # %%
 class PPO:
-  def __init__(self, env_maker, batch_size=8, lr=0.01, gamma=0.99, clip=0.2, epochs=1000, n_ppo_updates=5, max_steps=1000, print_every=10):
+  def __init__(self, env_maker, batch_size=1, lr=0.01, gamma=0.99, clip=0.2, epochs=500, n_ppo_updates=5, max_steps=1000, print_every=10):
     # Initialize hyperparameters
     self.batch_size = batch_size
     self.lr = lr
@@ -89,27 +89,13 @@ class PPO:
     # Initialize optimizers for actor and critic
     self.actor_optim = Adam(self.actor_model.parameters(), lr=self.lr)
     self.critic_optim = Adam(self.critic_model.parameters(), lr=self.lr)
-          
-    # Initialize memory bank
-    self.memory_bank = MemoryBank()
+
 
   def V(self, state, critic:Callable=None):
     critic = self.critic_model if critic is None else critic
     state = torch.cat(state) if isinstance(state, list) else state
     result = critic(state).squeeze() # [batch, 1] -> [batch]
     return result # [batch]
-  
-  def log_action_prob(self, state, action, policy:Callable=None):
-    policy = self.actor_model if policy is None else policy
-    state = torch.cat(state) if isinstance(state, list) else state
-    action = torch.cat(action) if isinstance(action, list) else action
-
-    action_pred = policy(state) # num_actions [batch, action dims] -> [1, 2]
-    action_prob = F.softmax(action_pred, dim=-1) # num_actions [batch, 2]
-    dist = torch.distributions.Categorical(action_prob) # [batch, 2]
-    log_prob_action = dist.log_prob(action) # log(action_prob[action]) -> [batch] # probability of action taken
-
-    return log_prob_action
 
   def update_PPO(self, observations, actions, log_action_probs, rewards, advantages, clip, epochs):
     advantages = advantages.detach()
@@ -117,8 +103,12 @@ class PPO:
     log_action_probs = log_action_probs.detach()
 
     for _ in range(epochs):
+      # estimate the value of the current state
       V = self.V(observations)
-      new_action_log_probs = self.log_action_prob(observations, actions)
+
+      # estimate the log probability of the past actions given the current policy
+      new_action_log_probs = log_action_prob(self.actor_model, observations, actions)
+
       ratio = torch.exp(new_action_log_probs - log_action_probs) # [batch]
 
       # surrogate losses
@@ -129,8 +119,7 @@ class PPO:
       actor_loss = -torch.min(surr1, surr2).mean()
 
       # critic loss
-      # critic_loss = nn.MSELoss()(V, rewards)
-      critic_loss = F.smooth_l1_loss(V, rewards)
+      critic_loss = nn.MSELoss()(V, rewards)
 
       # Updating the actor and critic
       self.actor_optim.zero_grad()
@@ -154,10 +143,13 @@ class PPO:
     for i in range(1, self.epochs+1):    
       # compute the trajectory usin the current policy
       batch_obs, batch_acts, batch_log_probs, rewards = batch_trajectory(self.env, self.actor_model, batch_size=self.batch_size, max_steps=self.max_steps)
+
+      # compute the discounted rewards
       batch_reward_otgs = discounted_rewards(rewards, discount_factor=self.gamma)
 
+      # compute the advantage
       V = self.V(batch_obs)
-      A_k = rewards - V
+      A_k = batch_reward_otgs - V
       A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10) # NORMALIZE
 
       # return a list of discounted rewards [steps]
