@@ -9,7 +9,7 @@ import asyncio
 import concurrent.futures
 from termcolor import colored
 
-import gym
+import gymnasium as gym
 from common.jupyter_animation import animate, animation_table
 from common.memory_bank import MemoryBank
 from common.agents import AgentAnimator, T_Element
