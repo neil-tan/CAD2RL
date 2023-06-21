@@ -67,7 +67,7 @@ p.setGravity(0, 0, -9.807)
 p.setJointMotorControl2(cartpole, 1, p.VELOCITY_CONTROL, targetVelocity=0, force=0)
 
 # Run the simulation for a fixed amount of steps.
-for i in range(200):
+for i in range(400):
     position, orientation = p.getBasePositionAndOrientation(cartpole)
     x, y, z = position
 
@@ -103,6 +103,11 @@ def getPoleHeight(cartpole):
 
 print(f"Pole height: {getPoleHeight(cartpole)}")
 
+def getCartPosition(cartpole):
+  link_state = p.getLinkState(cartpole, 0, computeLinkVelocity=1)
+  return link_state[0]
+
+print(f"Cart position: {getCartPosition(cartpole)}")
 
 # TODO: read getLinkStates in the PyBullet docs
 # %%
