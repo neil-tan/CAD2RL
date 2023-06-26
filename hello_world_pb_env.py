@@ -20,7 +20,8 @@ class CartPolePyBulletEnv(gym.Env):
         self.render_mode = render_mode
 
         self.x_threshold = 2.4
-        self.theta_threshold_radians = 12 * 2 * np.pi / 360
+        self.theta_threshold_degrees = 12
+        self.theta_threshold_radians = self.theta_threshold_degrees * 2 * np.pi / 360
         self.max_episode_steps = 200
 
         self.observation_space = spaces.Box(np.array([-4.8000002e+00, -3.4028235e+38, -4.1887903e-01, -3.4028235e+38]),
@@ -58,7 +59,7 @@ class CartPolePyBulletEnv(gym.Env):
         position = link_state[0]
         angular_velocity = link_state[7][0]
         # assuming the pole is not rotating around the x and y axis
-        angle = p.getAxisAngleFromQuaternion(link_state[5], physicsClientId=self.physID)[0][1]
+        angle = p.getAxisAngleFromQuaternion(link_state[5], physicsClientId=self.physID)[1]
         return position, angular_velocity, angle
 
     def _should_terminate(self, position, angle):

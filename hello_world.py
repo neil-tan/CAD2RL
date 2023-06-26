@@ -22,3 +22,5 @@ print("Training finished.")
 animate_policy(env, lambda state: test_obj.select_action(state))
 
 # %%
+
+# radian vs degree
