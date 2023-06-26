@@ -37,7 +37,7 @@ def init_weights(m):
 
 # %%
 class PPO:
-  def __init__(self, env_maker, batch_size=1, lr=0.01, gamma=0.99, clip=0.2, epochs=500, n_ppo_updates=5, max_steps=1000, stop_at_reward=500, print_every=10):
+  def __init__(self, env, batch_size=1, lr=0.01, gamma=0.99, clip=0.2, epochs=500, n_ppo_updates=5, max_steps=1000, stop_at_reward=500, print_every=10):
     # Initialize hyperparameters
     self.batch_size = batch_size
     self.lr = lr
@@ -50,7 +50,8 @@ class PPO:
     self.stop_at_reward = stop_at_reward
   
     # Initialize environment
-    self.env = env_maker()
+    self.env = env
+    self.env.reset()
 
     # Initialize actor and critic models
     self.actor_model = MLP(in_dim=4, hidden_dim=64, out_dim=2)

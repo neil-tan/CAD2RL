@@ -33,10 +33,6 @@ class CartPolePyBulletEnv(gym.Env):
 
         self.physID = p.connect(p.DIRECT)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
-        
-        p.loadURDF('plane.urdf')
-        self.cartpole = p.loadURDF('cartpole.urdf', [0, 0, 0.5])
-        p.setGravity(0, 0, -9.807, physicsClientId=self.physID)
         self.reset()
 
     def _get_obs(self):
@@ -79,13 +75,18 @@ class CartPolePyBulletEnv(gym.Env):
         self.current_steps_count = 0
 
         p.resetSimulation(physicsClientId=self.physID)
+
+        p.loadURDF('plane.urdf', physicsClientId=self.physID)
+        self.cartpole = p.loadURDF('cartpole.urdf', [0, 0, 0.5], physicsClientId=self.physID)
+        p.setGravity(0, 0, -9.807, physicsClientId=self.physID)
+
         p.setJointMotorControl2(self.cartpole, 1, p.VELOCITY_CONTROL, targetVelocity=0, force=0, physicsClientId=self.physID)
 
         # get obs
         # get info
         # reset render mode?
 
-        return self._get_observation(), self.get_info()
+        return self._get_obs(), self._get_info()
 
     def step(self, action):
         position, orientation = p.getBasePositionAndOrientation(self.cartpole)
