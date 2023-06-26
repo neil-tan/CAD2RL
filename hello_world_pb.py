@@ -112,13 +112,13 @@ print(f"Cart position: {getCartPosition(cartpole)}")
 def getPoleStates(cartpole):
   link_state = p.getLinkState(cartpole, 1, computeLinkVelocity=1)
   position = link_state[0]
-  velocity = link_state[6]
+  angular_velocity = link_state[7]
   # assuming the pole is not rotating around the x and y axis
   angle = p.getAxisAngleFromQuaternion(link_state[5])[0][1]
-  return position, velocity, angle
+  return position, angular_velocity, angle
 
-pole_position, pole_velocity, pole_angle = getPoleStates(cartpole)
-print(f"Pole states:\n position: {pole_position}\n velocity: {pole_velocity}\n angle: {pole_angle}")
+pole_position, pole_angular_velocity, pole_angle = getPoleStates(cartpole)
+print(f"Pole states:\n position: {pole_position}\n velocity: {pole_angular_velocity}\n angle: {pole_angle}")
 
 # TODO: read getLinkStates in the PyBullet docs
 # %%

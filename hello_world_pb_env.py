@@ -45,9 +45,10 @@ class CartPolePyBulletEnv(gym.Env):
         # assume only moves in x
         cart_position = p.getLinkState(self.cartpole, 0, computeLinkVelocity=1, physicsClientId=self.physID)[0][0]
         cart_velocity = p.getLinkState(self.cartpole, 0, computeLinkVelocity=1, physicsClientId=self.physID)[6][0]
-        _, pole_velocity, pole_angle = self._getPoleStates(self.cartpole)
+        _, pole_angular_velocity, pole_angle = self._getPoleStates(self.cartpole)
         
-        return cart_position, cart_velocity, pole_angle, pole_velocity
+        result = np.array([cart_position, cart_velocity, pole_angle, pole_angular_velocity], dtype=np.float32)
+        return result
 
     def _get_info(self):
         return {}
@@ -55,10 +56,10 @@ class CartPolePyBulletEnv(gym.Env):
     def _getPoleStates(self, cartpole):
         link_state = p.getLinkState(cartpole, 1, computeLinkVelocity=1, physicsClientId=self.physID)
         position = link_state[0]
-        velocity = link_state[6]
+        angular_velocity = link_state[7][0]
         # assuming the pole is not rotating around the x and y axis
         angle = p.getAxisAngleFromQuaternion(link_state[5], physicsClientId=self.physID)[0][1]
-        return position, velocity, angle
+        return position, angular_velocity, angle
 
     def _should_terminate(self, position, angle):
         return (
