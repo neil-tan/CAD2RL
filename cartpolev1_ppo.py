@@ -23,7 +23,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import Adam
 
-from common.ppo import PPO
+from common.ppo import PPO, MLP
 from common.visualize import animate_policy
 
 # %%
@@ -32,7 +32,9 @@ env = gym.make('CartPole-v1', render_mode="rgb_array")
 animate_policy(env, lambda state: np.random.randint(0,1))
 
 # %%
-test_obj = PPO(env=env)
+test_obj = PPO(env=env,
+               policy_network=MLP(in_dim=4, hidden_dim=64, out_dim=2),
+               value_network=MLP(in_dim=4, hidden_dim=64, out_dim=1))
 test_obj.train()
 
 print("Training finished")

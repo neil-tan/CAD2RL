@@ -15,14 +15,17 @@ import pybullet_data
 class CartPolePyBulletEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
-    def __init__(self, render_mode=None):
+    def __init__(self, render_mode=None, targetVelocity=0.1, max_force=100):
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
 
         self.x_threshold = 2.4
         self.theta_threshold_degrees = 12
         self.theta_threshold_radians = self.theta_threshold_degrees * 2 * np.pi / 360
-        self.max_episode_steps = 200
+        self.targetVelocity = targetVelocity
+        self.max_force = max_force
+
+        self.done = False
 
         self.observation_space = spaces.Box(np.array([-4.8000002e+00, -3.4028235e+38, -4.1887903e-01, -3.4028235e+38]),
                                             np.array([4.8000002e+00, 3.4028235e+38, 4.1887903e-01, 3.4028235e+38]), (4,), np.float32)
@@ -75,6 +78,7 @@ class CartPolePyBulletEnv(gym.Env):
         self._seed = seed
         self._options = options
         self.current_steps_count = 0
+        self.done = False
 
         p.resetSimulation(physicsClientId=self.physID)
 
@@ -96,16 +100,21 @@ class CartPolePyBulletEnv(gym.Env):
 
         p.setJointMotorControl2(self.cartpole, 0,
                                 p.VELOCITY_CONTROL,
-                                targetVelocity=1 if action == 1 else -1,)
+                                targetVelocity=self.targetVelocity if action == 1 else -self.targetVelocity,
+                                force=self.max_force,
+                                physicsClientId=self.physID)
 
         p.stepSimulation()
 
         observation = self._get_obs()
         cart_position, cart_velocity, pole_angle, pole_velocity = observation
-        done = self._should_terminate(cart_position, pole_angle)
-        reward = 1.0 if not done else 0.0
+        
+        reward = 0
+        if not self.done:
+            self.done = self._should_terminate(cart_position, pole_angle)
+            reward = 1.0
 
-        return observation, reward, done, False, self._get_info()
+        return observation, reward, self.done, False, self._get_info()
 
     
     def getPoleHeight(self):
