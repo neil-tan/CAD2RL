@@ -15,15 +15,16 @@ import pybullet_data
 class CartPolePyBulletEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
-    def __init__(self, render_mode=None, targetVelocity=0.1, max_force=100):
+    def __init__(self, render_mode=None, targetVelocity=0.1, max_force=100, step_scaler:int=1):
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
 
         self.x_threshold = 2.4
         self.theta_threshold_degrees = 12
-        self.theta_threshold_radians = self.theta_threshold_degrees * 2 * np.pi / 360
+        self.theta_threshold_radians = self.theta_threshold_degrees * 2 * np.pi / 360 # 0.209
         self.targetVelocity = targetVelocity
         self.max_force = max_force
+        self.step_scaler = step_scaler
 
         self.done = False
 
@@ -60,7 +61,7 @@ class CartPolePyBulletEnv(gym.Env):
     def _getPoleStates(self, cartpole):
         link_state = p.getLinkState(cartpole, 1, computeLinkVelocity=1, physicsClientId=self.physID)
         position = link_state[0]
-        angular_velocity = link_state[7][0]
+        angular_velocity = link_state[7][1]
         # assuming the pole is not rotating around the x and y axis
         angle = p.getAxisAngleFromQuaternion(link_state[5], physicsClientId=self.physID)[1]
         return position, angular_velocity, angle
@@ -72,6 +73,10 @@ class CartPolePyBulletEnv(gym.Env):
             or angle < -self.theta_threshold_radians
             or angle > self.theta_threshold_radians
         )
+
+    def _step_simulation(self):
+        for _ in range(self.step_scaler):
+            p.stepSimulation(physicsClientId=self.physID)
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -88,9 +93,17 @@ class CartPolePyBulletEnv(gym.Env):
 
         p.setJointMotorControl2(self.cartpole, 1, p.VELOCITY_CONTROL, targetVelocity=0, force=0, physicsClientId=self.physID)
 
-        # get obs
-        # get info
-        # reset render mode?
+        # randomize initial condition
+        random_condition_gen = lambda : np.random.uniform(low=-0.05, high=0.05)
+        init_cart_position = random_condition_gen()
+        init_cart_velocity = random_condition_gen()
+        init_pole_angle = random_condition_gen()
+        init_pole_angular_velocity = random_condition_gen()
+
+        p.resetJointState(self.cartpole, 0, init_cart_position, targetVelocity=init_cart_velocity, physicsClientId=self.physID)
+        p.resetJointState(self.cartpole, 1, init_pole_angle, targetVelocity=init_pole_angular_velocity, physicsClientId=self.physID)
+
+        self._step_simulation()
 
         return self._get_obs(), self._get_info()
 
@@ -104,7 +117,7 @@ class CartPolePyBulletEnv(gym.Env):
                                 force=self.max_force,
                                 physicsClientId=self.physID)
 
-        p.stepSimulation()
+        self._step_simulation()
 
         observation = self._get_obs()
         cart_position, cart_velocity, pole_angle, pole_velocity = observation

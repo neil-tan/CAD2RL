@@ -4,6 +4,7 @@ import gymnasium as gym
 import hello_world_pb_env
 from common.ppo import PPO, MLP
 from common.visualize import animate_policy
+import matplotlib.pyplot as plt
 
 # %%
 custom_environment_spec = gym.envs.registration.EnvSpec(id='my_env/pybullet_cartpole-v1', 
@@ -11,20 +12,20 @@ custom_environment_spec = gym.envs.registration.EnvSpec(id='my_env/pybullet_cart
                                                    reward_threshold=2000, 
                                                    max_episode_steps=2000,
                                                    )
-env = gym.make(custom_environment_spec, render_mode="rgb_array", max_force=1000, targetVelocity=0.15)
+env = gym.make(custom_environment_spec, render_mode="rgb_array", max_force=1000, targetVelocity=1)
 # %%
 animate_policy(env, lambda state: np.random.randint(0,1), scale_factor=4)
 # %%
-
 test_obj = PPO(env=env,
-               policy_network=MLP(in_dim=4, hidden_dim=1024, out_dim=2),
-               value_network=MLP(in_dim=4, hidden_dim=1024, out_dim=1),
-               lr=0.01,
+               policy_network=MLP(in_dim=4, hidden_dim=256, out_dim=2),
+               value_network=MLP(in_dim=4, hidden_dim=256, out_dim=1),
+               batch_size=1,
+               lr=0.001,
                gamma=0.99,
-               epochs=2000,
-               n_ppo_updates=10,
+               epochs=450,
+               n_ppo_updates=5,
                max_steps=2000,
-               stop_at_reward=2000,
+               stop_at_reward=None,
                print_every=20,
                )
 test_obj.train()
@@ -35,4 +36,4 @@ print("Training finished.")
 animate_policy(env, lambda state: test_obj.select_action(state), scale_factor=4)
 
 # %%
-# TODO: Random state start
+# TODO: Random state startpre

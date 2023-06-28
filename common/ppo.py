@@ -13,6 +13,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
 
+import matplotlib.pyplot as plt
+
 # %%
 
 class MLP(nn.Module):
@@ -37,7 +39,20 @@ def init_weights(m):
 
 # %%
 class PPO:
-  def __init__(self, env, policy_network:nn.Module, value_network:nn.Module, batch_size=1, lr=0.01, gamma=0.99, clip=0.2, epochs=500, n_ppo_updates=5, max_steps=1000, stop_at_reward=500, print_every=10):
+  def __init__(self, 
+               env, 
+               policy_network:nn.Module, 
+               value_network:nn.Module, 
+               batch_size=1, 
+               lr=0.01, 
+               gamma=0.99, 
+               clip=0.2, 
+               epochs=500, 
+               n_ppo_updates=5, 
+               max_steps=1000, 
+               stop_at_reward=500, 
+               print_every=10,):
+
     # Initialize hyperparameters
     self.batch_size = batch_size
     self.lr = lr
@@ -63,7 +78,6 @@ class PPO:
     # Initialize optimizers for actor and critic
     self.actor_optim = Adam(self.actor_model.parameters(), lr=self.lr)
     self.critic_optim = Adam(self.critic_model.parameters(), lr=self.lr)
-
 
   def V(self, state, critic:Callable=None):
     critic = self.critic_model if critic is None else critic
@@ -134,21 +148,22 @@ class PPO:
 
       trace_reward = sum(rewards).item() / self.batch_size
       accumlated_reward += trace_reward
-      
+
       if trace_reward > max_reward:
         max_reward = trace_reward
         self.save_best_param()
         past_episode_max_reward = True
         
       if i % self.print_every == 0:
+        average_rolling_reward = accumlated_reward/self.print_every
         if past_episode_max_reward:
-          print(colored("rolling reward: " + str(accumlated_reward/self.print_every) + " max: " + str(max_reward), 'red'))
+          print(colored(f"[{i}] rolling reward: {average_rolling_reward} max: {max_reward}", 'red'))
           past_episode_max_reward = False
         else:
-          print("rolling reward: ", accumlated_reward/self.print_every)
+          print(f"[{i}] rolling reward: {average_rolling_reward}")
         accumlated_reward = 0
       
-      if trace_reward >= self.stop_at_reward:
+      if self.stop_at_reward is not None and trace_reward >= self.stop_at_reward:
         print("Reached reward: ", self.stop_at_reward)
         break
 
