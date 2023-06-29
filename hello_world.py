@@ -20,9 +20,9 @@ test_obj = PPO(env=env,
                policy_network=MLP(in_dim=4, hidden_dim=256, out_dim=2),
                value_network=MLP(in_dim=4, hidden_dim=256, out_dim=1),
                batch_size=1,
-               lr=0.001,
+               lr=0.01,
                gamma=0.99,
-               epochs=450,
+               epochs=300,
                n_ppo_updates=5,
                max_steps=2000,
                stop_at_reward=None,
@@ -36,4 +36,3 @@ print("Training finished.")
 animate_policy(env, lambda state: test_obj.select_action(state), scale_factor=4)
 
 # %%
-# TODO: Random state startpre

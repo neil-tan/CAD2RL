@@ -79,6 +79,12 @@ class PPO:
     self.actor_optim = Adam(self.actor_model.parameters(), lr=self.lr)
     self.critic_optim = Adam(self.critic_model.parameters(), lr=self.lr)
 
+    # Logging and monitoring
+    self.accumlated_rolling_reward = 0
+    self.max_individial_trace_reward = 0
+    self.max_average_rolling_reward = 0
+    self.episode_contained_max_reward = 0
+
   def V(self, state, critic:Callable=None):
     critic = self.critic_model if critic is None else critic
     state = torch.cat(state) if isinstance(state, list) else state
@@ -117,15 +123,45 @@ class PPO:
       self.critic_optim.zero_grad()
       critic_loss.backward()
       self.critic_optim.step()
+  
+  def monitor(self, current_episode, observations, actions, rewards):
+    is_best_average_rolling_reward = False
+    is_best_individial_trace_reward = False
+    is_stop_reward_reached = False
+
+    trace_reward = sum(rewards).item() / self.batch_size
+    self.accumlated_rolling_reward += trace_reward
+    average_rolling_reward = self.accumlated_rolling_reward/self.print_every
+
+    if average_rolling_reward > self.max_average_rolling_reward:
+      self.max_average_rolling_reward = average_rolling_reward
+      is_best_average_rolling_reward = True
+
+    if trace_reward > self.max_individial_trace_reward:
+      self.max_individial_trace_reward = trace_reward
+      self.episode_contained_max_reward = current_episode
+    
+    # print progress
+    if current_episode % self.print_every == 0:
+      # max reward belong to the current average episode
+      if current_episode - self.episode_contained_max_reward < self.print_every:
+        print(colored(f"[{current_episode}] rolling reward: {average_rolling_reward} max: {self.max_individial_trace_reward}", 'red'))
+      else:
+        print(f"[{current_episode}] rolling reward: {average_rolling_reward}")
+      self.accumlated_rolling_reward = 0
+      
+    if self.stop_at_reward is not None and self.max_individial_trace_reward >= self.stop_at_reward:
+      print("Reached reward: ", self.stop_at_reward)
+      is_stop_reward_reached = True
+
+    is_best_individial_trace_reward = current_episode == self.episode_contained_max_reward
+
+    return is_best_average_rolling_reward, is_best_individial_trace_reward, is_stop_reward_reached
 
   def train(self):
 
     self.actor_model.train()
     self.critic_model.train()
-
-    accumlated_reward = 0
-    max_reward = 0
-    past_episode_max_reward = False
 
     print("n_episode: ", self.epochs)
     for i in range(1, self.epochs+1):    
@@ -142,33 +178,21 @@ class PPO:
 
       # return a list of discounted rewards [steps]
       
-
       # PPO Update
       self.update_PPO(batch_obs, batch_acts, batch_log_probs, batch_reward_otgs, A_k, self.clip, epochs=self.n_ppo_updates)
 
-      trace_reward = sum(rewards).item() / self.batch_size
-      accumlated_reward += trace_reward
+      # metrics
+      is_best_average_rolling_reward, is_best_individial_trace_reward, is_stop_reward_reached = self.monitor(i, batch_obs, batch_acts, rewards)
 
-      if trace_reward > max_reward:
-        max_reward = trace_reward
+      # save the best model and early stop
+      if is_best_average_rolling_reward:
         self.save_best_param()
-        past_episode_max_reward = True
-        
-      if i % self.print_every == 0:
-        average_rolling_reward = accumlated_reward/self.print_every
-        if past_episode_max_reward:
-          print(colored(f"[{i}] rolling reward: {average_rolling_reward} max: {max_reward}", 'red'))
-          past_episode_max_reward = False
-        else:
-          print(f"[{i}] rolling reward: {average_rolling_reward}")
-        accumlated_reward = 0
       
-      if self.stop_at_reward is not None and trace_reward >= self.stop_at_reward:
-        print("Reached reward: ", self.stop_at_reward)
+      if is_stop_reward_reached:
         break
 
     self.load_best_param()
-    print("max reward: ", max_reward)
+    print("Done...")
 
   def save_best_param(self):
     with torch.no_grad():
