@@ -4,7 +4,7 @@
 # https://gerardmaggiolino.medium.com/creating-openai-gym-environments-with-pybullet-part-1-13895a622b24
 
 import pybullet as p
-from pb_utils import getCameraImage, print_joint_info, print_joint_states, print_body_states
+from common.pb_utils import getCameraImage, print_joint_info, print_joint_states, print_body_states
 from IPython.display import display
 import pybullet_data
 

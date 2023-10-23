@@ -1,7 +1,7 @@
 # %%
 import numpy as np
 import gymnasium as gym
-import hello_world_pb_env
+import custom_envs.cartpole_pb_env as hello_world_pb_env
 from common.ppo import PPO, MLP
 from common.visualize import animate_policy
 import matplotlib.pyplot as plt
