@@ -33,6 +33,6 @@ test_obj.train()
 print("Training finished.")
 
 # %%
-animate_policy(env, lambda state: test_obj.select_action(state), scale_factor=4)
+animate_policy(env, lambda state: test_obj.select_action(state), scale_factor=4, save_path="test.gif")
 
 # %%
