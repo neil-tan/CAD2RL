@@ -1,9 +1,13 @@
 # OnShape to RL (WIP)
 This is a work-in-progress repository set to demonstrate the end-to-end workflow from:
 - Creating a OnShape CAD drawing
-- Export the CAD project to URDF
+- Export the CAD project to URDF (WIP)
 - Construct a PyBullet Simulation environment using the URDF
 - Train the RL agent for the environment
+
+<center><img src="./assets/img/cartpolev1_ppo.gif"></center>
+
+
 
 In addition, the repo also contains navie implementation of the following RL algorithms:
 -  Proximal Policy Optimization **([PPO](https://github.com/neil-tan/CAD2RL/blob/main/cartpolev1_ppo.py))**
@@ -40,4 +44,6 @@ Install the Python packages
 ```
 
 ## Start Training
-Open VSCode and select the Python interpreter from the virtual environment created above. Then, open the Python file you want to run and press `F5` to start training.
+Open VSCode and select the Python interpreter from the virtual environment created above. Then, open the Python file you want to run and choose the "run in interactive window" from the run menu.
+<center><img src="./assets/img/vscode_run_interactive.jpg"></center>
+
