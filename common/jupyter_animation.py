@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 from matplotlib.animation import FuncAnimation
 from typing import Iterable, Union, Callable, Tuple, List, Dict, Any
 
-def animate(image_seq: Iterable, axes=None, close_fig=True):
+def animate(image_seq: Iterable, axes=None, close_fig=True, save_path=None):
   from matplotlib import rc
   rc('animation', html='html5')
 
@@ -21,6 +21,10 @@ def animate(image_seq: Iterable, axes=None, close_fig=True):
 
   if close_fig:
     plt.close(fig)
+
+  if save_path is not None:
+    # save the sequence of images as a gif
+    image_seq[0].save(save_path, save_all=True, append_images=image_seq[1:], duration=50, loop=0)
     
   return animation_handler
 

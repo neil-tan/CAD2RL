@@ -1,10 +1,16 @@
 # %%
 import numpy as np
+import torch
 import gymnasium as gym
 import custom_envs.cartpole_pb_env as hello_world_pb_env
 from common.ppo import PPO, MLP
 from common.visualize import animate_policy
 import matplotlib.pyplot as plt
+
+# %%
+# set random seed
+np.random.seed(98765)
+torch.manual_seed(98765)
 
 # %%
 custom_environment_spec = gym.envs.registration.EnvSpec(id='my_env/pybullet_cartpole-v1', 
